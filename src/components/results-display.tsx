@@ -1,19 +1,40 @@
 import { Badge } from './ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
-import { CompatibilityResult, BrowserSupport, getBrowserName } from '../services/caniuseService'
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion'
+import {
+  CompatibilityResult,
+  BrowserSupport,
+  getBrowserName,
+  SupportLevel,
+  getFeatureTitle,
+} from '@/services/caniuseService'
 import { CanIUseLearnMoreButton } from './caniuse-learn-more-button'
+
+const generateSummaryText = (
+  result: CompatibilityResult,
+  baseFeatureTitle: string,
+  targetFeatureTitle: string,
+): string => {
+  const { fullSupportPercentage, partialSupportPercentage } = result.details
+
+  if (fullSupportPercentage >= 100) {
+    return `${Math.round(fullSupportPercentage)}% of browsers supporting "${baseFeatureTitle}" also fully support "${targetFeatureTitle}".`
+  } else if (fullSupportPercentage + partialSupportPercentage >= 70) {
+    return `${Math.round(fullSupportPercentage + partialSupportPercentage)}% of browsers supporting "${baseFeatureTitle}" have at least partial support for "${targetFeatureTitle}".`
+  } else {
+    return `Only ${Math.round(fullSupportPercentage + partialSupportPercentage)}% of browsers supporting "${baseFeatureTitle}" support "${targetFeatureTitle}". Consider alternative approaches.`
+  }
+}
 
 interface ResultsDisplayProps {
   result: CompatibilityResult
-  baseFeatureTitle: string
   baseFeatureId: string
-  targetFeatureTitle: string
   targetFeatureId: string
 }
 
-const getStatusBadge = (status: 'yes' | 'partial' | 'no') => {
+const getStatusBadge = (status: SupportLevel) => {
   switch (status) {
-    case 'yes':
+    case 'full':
       return (
         <Badge variant="success" className="text-base px-4 py-2">
           ✓ Compatible
@@ -25,7 +46,7 @@ const getStatusBadge = (status: 'yes' | 'partial' | 'no') => {
           ⚠ Partially Compatible
         </Badge>
       )
-    case 'no':
+    case 'none':
       return (
         <Badge variant="destructive" className="text-base px-4 py-2">
           ✗ Not Compatible
@@ -34,7 +55,7 @@ const getStatusBadge = (status: 'yes' | 'partial' | 'no') => {
   }
 }
 
-const getSupportIcon = (level: 'full' | 'partial' | 'none') => {
+const getSupportIcon = (level: SupportLevel) => {
   switch (level) {
     case 'full':
       return <span className="text-green-500">✓</span>
@@ -45,82 +66,136 @@ const getSupportIcon = (level: 'full' | 'partial' | 'none') => {
   }
 }
 
-const groupBrowsersById = (browsers: BrowserSupport[]) => {
+const groupBrowsersBySupport = (browsers: BrowserSupport[]) => {
   const grouped = browsers.reduce(
     (acc, browser) => {
-      acc[browser.browserId] ??= []
-      acc[browser.browserId].push(browser)
+      if (!acc[browser.browserId]) {
+        acc[browser.browserId] = { full: [], partial: [], none: [] }
+      }
+      acc[browser.browserId][browser.supportLevel].push(browser.version)
       return acc
     },
-    {} as Record<string, BrowserSupport[]>,
+    {} as Record<string, Record<SupportLevel, string[]>>,
   )
 
-  // Sort versions within each browser
-  Object.keys(grouped).forEach((browserId) => {
-    grouped[browserId].sort((a, b) => {
-      // Simple version comparison - may need improvement for complex version strings
-      const aNum = parseFloat(a.version)
-      const bNum = parseFloat(b.version)
-      return aNum - bNum
-    })
-  })
+  return Object.entries(grouped).map(([browserId, versionsByLevel]) => {
+    const totalVersions = versionsByLevel.full.length + versionsByLevel.partial.length + versionsByLevel.none.length
+    const overallSupport: SupportLevel =
+      versionsByLevel.full.length === totalVersions
+        ? 'full'
+        : versionsByLevel.full.length + versionsByLevel.partial.length > versionsByLevel.none.length
+          ? 'partial'
+          : 'none'
 
-  return grouped
+    // Sort versions numerically for better display
+    const sortVersions = (versions: string[]) => versions.sort((a, b) => parseFloat(a) - parseFloat(b))
+
+    return {
+      browserId,
+      versionsByLevel: {
+        full: sortVersions([...versionsByLevel.full]),
+        partial: sortVersions([...versionsByLevel.partial]),
+        none: sortVersions([...versionsByLevel.none]),
+      } as Record<SupportLevel, string[]>,
+      overallSupport,
+    }
+  })
 }
 
+const formatVersionsList = (versions: string[]) => {
+  if (versions.length === 0) return null
 
-export function ResultsDisplay({ result, baseFeatureTitle, baseFeatureId, targetFeatureTitle, targetFeatureId }: ResultsDisplayProps) {
+  // Group consecutive versions into ranges for better readability
+  const groupedVersions = []
+  let rangeStart = versions[0]
+  let rangeEnd = versions[0]
+
+  for (let i = 1; i < versions.length; i++) {
+    const current = parseFloat(versions[i])
+    const previous = parseFloat(versions[i - 1])
+
+    if (current === previous + 1 || current === previous + 0.1) {
+      rangeEnd = versions[i]
+    } else {
+      // Add the previous range
+      if (rangeStart === rangeEnd) {
+        groupedVersions.push(`v${rangeStart}`)
+      } else {
+        groupedVersions.push(`v${rangeStart}-v${rangeEnd}`)
+      }
+      rangeStart = versions[i]
+      rangeEnd = versions[i]
+    }
+  }
+
+  // Add the final range
+  if (rangeStart === rangeEnd) {
+    groupedVersions.push(`v${rangeStart}`)
+  } else {
+    groupedVersions.push(`v${rangeStart}-v${rangeEnd}`)
+  }
+
+  // Return all versions without truncation
+  return groupedVersions.join(', ')
+}
+
+export function ResultsDisplay({ result, baseFeatureId, targetFeatureId }: ResultsDisplayProps) {
+  const baseFeatureTitle = getFeatureTitle(baseFeatureId)
+  const targetFeatureTitle = getFeatureTitle(targetFeatureId)
+
+  const processedSupport = groupBrowsersBySupport(result.details.overlappingSupport)
+  const summaryText = generateSummaryText(result, baseFeatureTitle, targetFeatureTitle)
 
   return (
     <Card className="w-full">
       <CardHeader className="text-center">
         <div className="flex justify-center mb-4">{getStatusBadge(result.compatible)}</div>
         <CardTitle className="text-xl">Compatibility Result</CardTitle>
-        <CardDescription>{result.summary}</CardDescription>
+        <CardDescription>{summaryText}</CardDescription>
       </CardHeader>
 
       <CardContent>
         <div className="space-y-4">
-          <div className="flex justify-between items-center text-sm text-muted-foreground">
-            <span>Browser Support Overlap</span>
-            <span className="font-medium">{Math.round(result.confidence)}%</span>
-          </div>
-          
           <div className="flex flex-col sm:flex-row gap-2">
             <CanIUseLearnMoreButton featureTitle={baseFeatureTitle} featureId={baseFeatureId} className="flex-1" />
             <CanIUseLearnMoreButton featureTitle={targetFeatureTitle} featureId={targetFeatureId} className="flex-1" />
           </div>
 
           <div className="space-y-6 border-t pt-6">
-            <div>
-              <h4 className="font-semibold mb-3">Browser Support Analysis</h4>
-              <p className="text-sm text-muted-foreground mb-4">
-                This shows how well "{targetFeatureTitle}" works in browsers that support "{baseFeatureTitle}".
-              </p>
+            <h4 className="font-semibold mb-3">Browser Support Analysis</h4>
 
-              <div className="space-y-4">
-                {Object.entries(groupBrowsersById(result.details.overlappingSupport)).map(
-                  ([browserId, versions]) => (
-                    <div key={browserId} className="border rounded-lg p-4">
-                      <h5 className="font-medium mb-2">{getBrowserName(browserId)}</h5>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                        {versions.slice(0, 6).map((version, index) => (
-                          <div key={index} className="flex items-center justify-between text-sm">
-                            <span>v{version.version}</span>
-                            <div className="flex items-center">
-                              {getSupportIcon(version.supportLevel)}
-                              <span className="ml-1 text-xs text-muted-foreground">{version.supportLevel}</span>
+            <div className="space-y-4">
+              <Accordion type="multiple">
+                {processedSupport.map((browserData) => (
+                  <AccordionItem key={browserData.browserId} value={browserData.browserId}>
+                    <AccordionTrigger>
+                      <span>
+                        {getBrowserName(browserData.browserId)}
+                        <span className="ml-1">{getSupportIcon(browserData.overallSupport)}</span>
+                      </span>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      {Object.entries(browserData.versionsByLevel).map(([level, versions]) => {
+                        const supportLevel = level as SupportLevel
+                        const formattedVersions = formatVersionsList(versions)
+                        return (
+                          formattedVersions && (
+                            <div key={level} className="text-sm">
+                              <div className="flex items-start">
+                                <span className="mr-2 mt-0.5">{getSupportIcon(supportLevel)}</span>
+                                <div>
+                                  <span className="font-medium capitalize">{level} Support:</span>
+                                  <div className="text-gray-600 mt-1">{formattedVersions}</div>
+                                </div>
+                              </div>
                             </div>
-                          </div>
-                        ))}
-                        {versions.length > 6 && (
-                          <div className="text-xs text-muted-foreground">+{versions.length - 6} more versions</div>
-                        )}
-                      </div>
-                    </div>
-                  ),
-                )}
-              </div>
+                          )
+                        )
+                      })}
+                    </AccordionContent>
+                  </AccordionItem>
+                ))}
+              </Accordion>
             </div>
           </div>
         </div>
