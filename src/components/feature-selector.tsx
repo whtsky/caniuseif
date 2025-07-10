@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from 'react'
 import { Check, ChevronsUpDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from './ui/button'
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from './ui/command'
+import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from './ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
 import { searchFeatures, getFeatureTitle } from '@/services/caniuseService'
 
@@ -58,23 +58,28 @@ export function FeatureSelector({
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
-          <Command>
+          <Command shouldFilter={false}>
             <CommandInput placeholder="Search web features..." value={searchQuery} onValueChange={setSearchQuery} />
             <CommandList>
               <CommandEmpty>No features found.</CommandEmpty>
-              <CommandGroup>
-                {value && (
-                  <CommandItem value="" onSelect={handleClear} className="text-muted-foreground">
-                    Clear selection
-                  </CommandItem>
-                )}
-                {filteredFeatures.map((feature) => (
-                  <CommandItem key={feature.id} value={feature.id} onSelect={handleSelect}>
-                    <Check className={cn('mr-2 h-4 w-4', value === feature.id ? 'opacity-100' : 'opacity-0')} />
-                    {feature.title}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
+              {value && (
+                <CommandItem value="" onSelect={handleClear} className="text-muted-foreground">
+                  Clear selection
+                </CommandItem>
+              )}
+              {filteredFeatures.map((feature) => (
+                <CommandItem key={feature.id} value={feature.id} onSelect={handleSelect}>
+                  <div className="flex items-start">
+                    <Check className={cn('mr-2 h-4 w-4 mt-1', value === feature.id ? 'opacity-100' : 'opacity-0')} />
+                    <div>
+                      <div className="font-medium">{feature.title}</div>
+                      {feature.description && (
+                        <div className="text-xs text-muted-foreground mt-1">{feature.description}</div>
+                      )}
+                    </div>
+                  </div>
+                </CommandItem>
+              ))}
             </CommandList>
           </Command>
         </PopoverContent>

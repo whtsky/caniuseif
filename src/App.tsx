@@ -174,12 +174,12 @@ function App() {
           <p>
             Data powered by{' '}
             <a
-              href="https://github.com/browserslist/caniuse-lite"
+              href="https://github.com/Fyrd/caniuse"
               target="_blank"
               rel="noopener noreferrer"
               className="text-blue-600 hover:underline"
             >
-              caniuse-lite
+              caniuse-db
             </a>
           </p>
           <p>

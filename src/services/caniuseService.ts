@@ -1,6 +1,14 @@
-import { features, agents, feature, Feature } from 'caniuse-lite'
+import featuresData from 'caniuse-db/fulldata-json/data-2.0.json'
+import Fuse from 'fuse.js'
 
 export type SupportLevel = 'full' | 'partial' | 'none'
+
+// Enhanced feature interface with description
+export interface Feature {
+  id: string
+  title: string
+  description?: string
+}
 
 // Type definitions
 export interface BrowserSupport {
@@ -21,45 +29,34 @@ export interface CompatibilityResult {
   }
 }
 
-// Memoized features list for better performance
-let cachedFeaturesList: { id: string; title: string }[] | null = null
-
-// Get list of all available features
-export function getFeaturesList(): { id: string; title: string }[] {
-  if (cachedFeaturesList) {
-    return cachedFeaturesList
-  }
-
-  cachedFeaturesList = Object.entries(features).map(([id, packedData]) => {
-    const Feature = feature(packedData)
+export const featuresList: Feature[] = Object.entries((featuresData as any).data).map(
+  ([id, dbFeature]: [string, any]) => {
     return {
       id,
-      title: Feature.title || id,
+      title: dbFeature.title || id,
+      description: dbFeature.description,
     }
-  })
-
-  return cachedFeaturesList
-}
+  },
+)
+const fuse = new Fuse(featuresList, {
+  includeScore: true,
+  keys: ['title', 'description', 'id'],
+})
 
 export function getFeature(featureId: string): Feature | undefined {
-  const packedFeature = features[featureId]
-  if (!packedFeature) return undefined
-  return feature(packedFeature)
+  return (featuresData as any).data[featureId]
 }
 
 export function getFeatureTitle(featureId: string): string {
-  const Feature = getFeature(featureId)
-  return Feature?.title || featureId
+  const feature = getFeature(featureId)
+  return feature?.title || featureId
 }
 
-export function searchFeatures(query: string): { id: string; title: string }[] {
-  if (!query) return getFeaturesList()
-
-  const lowerQuery = query.toLowerCase()
-  return getFeaturesList().filter((item) => {
-    const title = item.title || item.id
-    return title.toLowerCase().includes(lowerQuery) || item.id.toLowerCase().includes(lowerQuery)
-  })
+export function searchFeatures(query: string): Feature[] {
+  if (!query) {
+    return featuresList
+  }
+  return fuse.search(query).map((result) => result.item)
 }
 
 function parseSupportLevel(supportString: string): SupportLevel {
@@ -70,11 +67,11 @@ function parseSupportLevel(supportString: string): SupportLevel {
 }
 
 // Get browser support data with enhanced browser information
-function getBrowserSupportData(Feature: Feature): BrowserSupport[] {
+function getBrowserSupportData(feature: any): BrowserSupport[] {
   const supportData: BrowserSupport[] = []
 
-  Object.entries(Feature.stats).forEach(([browserId, versions]) => {
-    Object.entries(versions).forEach(([version, support]) => {
+  Object.entries(feature.stats).forEach(([browserId, versions]: [string, any]) => {
+    Object.entries(versions).forEach(([version, support]: [string, any]) => {
       supportData.push({
         browserId,
         version,
@@ -170,6 +167,6 @@ export function checkCompatibility(baseFeatureId: string, targetFeatureId: strin
 
 /** Get browser name by id */
 export function getBrowserName(browserId: string): string {
-  const browser = agents[browserId]
+  const browser = (featuresData as any).agents[browserId]
   return browser?.browser || browserId
 }

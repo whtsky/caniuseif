@@ -6,7 +6,7 @@ import {
   BrowserSupport,
   getBrowserName,
   SupportLevel,
-  getFeatureTitle,
+  getFeature,
 } from '@/services/caniuseService'
 import { CanIUseLearnMoreButton } from './caniuse-learn-more-button'
 
@@ -20,9 +20,13 @@ const generateSummaryText = (
   if (fullSupportPercentage >= 100) {
     return `${Math.round(fullSupportPercentage)}% of browsers supporting "${baseFeatureTitle}" also fully support "${targetFeatureTitle}".`
   } else if (fullSupportPercentage + partialSupportPercentage >= 70) {
-    return `${Math.round(fullSupportPercentage + partialSupportPercentage)}% of browsers supporting "${baseFeatureTitle}" have at least partial support for "${targetFeatureTitle}".`
+    return `${Math.round(
+      fullSupportPercentage + partialSupportPercentage,
+    )}% of browsers supporting "${baseFeatureTitle}" have at least partial support for "${targetFeatureTitle}".`
   } else {
-    return `Only ${Math.round(fullSupportPercentage + partialSupportPercentage)}% of browsers supporting "${baseFeatureTitle}" support "${targetFeatureTitle}". Consider alternative approaches.`
+    return `Only ${Math.round(
+      fullSupportPercentage + partialSupportPercentage,
+    )}% of browsers supporting "${baseFeatureTitle}" support "${targetFeatureTitle}". Consider alternative approaches.`
   }
 }
 
@@ -140,8 +144,11 @@ const formatVersionsList = (versions: string[]) => {
 }
 
 export function ResultsDisplay({ result, baseFeatureId, targetFeatureId }: ResultsDisplayProps) {
-  const baseFeatureTitle = getFeatureTitle(baseFeatureId)
-  const targetFeatureTitle = getFeatureTitle(targetFeatureId)
+  const baseFeature = getFeature(baseFeatureId)
+  const targetFeature = getFeature(targetFeatureId)
+
+  const baseFeatureTitle = baseFeature?.title || baseFeatureId
+  const targetFeatureTitle = targetFeature?.title || targetFeatureId
 
   const processedSupport = groupBrowsersBySupport(result.details.overlappingSupport)
   const summaryText = generateSummaryText(result, baseFeatureTitle, targetFeatureTitle)
@@ -156,9 +163,29 @@ export function ResultsDisplay({ result, baseFeatureId, targetFeatureId }: Resul
 
       <CardContent>
         <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row gap-2">
-            <CanIUseLearnMoreButton featureTitle={baseFeatureTitle} featureId={baseFeatureId} className="flex-1" />
-            <CanIUseLearnMoreButton featureTitle={targetFeatureTitle} featureId={targetFeatureId} className="flex-1" />
+          <div className="grid md:grid-cols-2 gap-4">
+            <div className="border rounded-lg p-4">
+              <h3 className="font-semibold">{baseFeatureTitle}</h3>
+              {baseFeature?.description && (
+                <p className="text-sm text-muted-foreground mt-2">{baseFeature.description}</p>
+              )}
+              <CanIUseLearnMoreButton
+                featureTitle={baseFeatureTitle}
+                featureId={baseFeatureId}
+                className="mt-4 w-full"
+              />
+            </div>
+            <div className="border rounded-lg p-4">
+              <h3 className="font-semibold">{targetFeatureTitle}</h3>
+              {targetFeature?.description && (
+                <p className="text-sm text-muted-foreground mt-2">{targetFeature.description}</p>
+              )}
+              <CanIUseLearnMoreButton
+                featureTitle={targetFeatureTitle}
+                featureId={targetFeatureId}
+                className="mt-4 w-full"
+              />
+            </div>
           </div>
 
           <div className="space-y-6 border-t pt-6">
