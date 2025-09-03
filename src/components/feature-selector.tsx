@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from 'react'
 import { Check, ChevronsUpDown } from 'lucide-react'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { cn } from '@/lib/utils'
 import { Button } from './ui/button'
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from './ui/command'
@@ -22,9 +23,27 @@ export function FeatureSelector({
   const [open, setOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
 
+  // Use useState for tracking the parent node reference
+  const [parentNode, setParentNode] = useState<HTMLDivElement | null>(null)
+
   const filteredFeatures = useMemo(() => {
     return searchFeatures(searchQuery)
   }, [searchQuery])
+
+  // Virtual scrolling setup
+  const virtualizer = useVirtualizer({
+    count: filteredFeatures.length,
+    getScrollElement: () => parentNode,
+    estimateSize: () => 35,
+    overscan: 10,
+  })
+
+  // Callback ref to update the parent node reference
+  const refCallback = useCallback((node: HTMLDivElement | null) => {
+    if (node) {
+      setParentNode(node)
+    }
+  }, [])
 
   const handleSelect = useCallback(
     (currentValue: string) => {
@@ -60,26 +79,57 @@ export function FeatureSelector({
         <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
           <Command shouldFilter={false}>
             <CommandInput placeholder="Search web features..." value={searchQuery} onValueChange={setSearchQuery} />
-            <CommandList>
+            <CommandList ref={refCallback} className="max-h-[200px] overflow-auto">
               <CommandEmpty>No features found.</CommandEmpty>
               {value && (
                 <CommandItem value="" onSelect={handleClear} className="text-muted-foreground">
                   Clear selection
                 </CommandItem>
               )}
-              {filteredFeatures.map((feature) => (
-                <CommandItem key={feature.id} value={feature.id} onSelect={handleSelect}>
-                  <div className="flex items-start">
-                    <Check className={cn('mr-2 h-4 w-4 mt-1', value === feature.id ? 'opacity-100' : 'opacity-0')} />
-                    <div>
-                      <div className="font-medium">{feature.title}</div>
-                      {feature.description && (
-                        <div className="text-xs text-muted-foreground mt-1">{feature.description}</div>
-                      )}
-                    </div>
-                  </div>
-                </CommandItem>
-              ))}
+              <div
+                style={{
+                  height: `${virtualizer.getTotalSize()}px`,
+                  width: '100%',
+                  position: 'relative',
+                }}
+              >
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    transform: `translateY(${virtualizer.getVirtualItems()[0]?.start || 0}px)`,
+                  }}
+                >
+                  {virtualizer.getVirtualItems().map((virtualItem) => {
+                    const feature = filteredFeatures[virtualItem.index]
+                    return (
+                      <CommandItem
+                        key={virtualItem.key}
+                        value={feature.id}
+                        data-index={virtualItem.index}
+                        onSelect={handleSelect}
+                        ref={virtualizer.measureElement}
+                      >
+                        <div className="flex items-start">
+                          <Check
+                            className={cn('mr-2 h-4 w-4 mt-1', value === feature.id ? 'opacity-100' : 'opacity-0')}
+                          />
+                          <div className="flex-1">
+                            <div className="font-medium">{feature.title}</div>
+                            {feature.description && (
+                              <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                                {feature.description}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </CommandItem>
+                    )
+                  })}
+                </div>
+              </div>
             </CommandList>
           </Command>
         </PopoverContent>

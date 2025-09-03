@@ -10,4 +10,13 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('json')) return id.split('/').reverse()[0].split('.')[0]
+        },
+      },
+    },
+  },
 })

@@ -2,16 +2,17 @@ import { useState, useEffect } from 'react'
 import { FeatureSelector } from '@/components/feature-selector'
 import { ResultsDisplay } from '@/components/results-display'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card'
-import { checkCompatibility, CompatibilityResult, getFeature } from './services/caniuseService'
+import { checkCompatibility, getFeature } from './services/caniuseService'
+import type { CompatibilityResult } from './types/compat'
 
 // Helper functions for URL management
-function getFeatureIdFromUrl(paramName: string): string | null {
+async function getFeatureIdFromUrl(paramName: string): Promise<string | null> {
   const urlParams = new URLSearchParams(window.location.search)
   const featureId = urlParams.get(paramName)
 
   if (!featureId) return null
 
-  const feature = getFeature(featureId)
+  const feature = await getFeature(featureId)
   if (!feature) return null
 
   return featureId
@@ -41,7 +42,7 @@ function App() {
   const [compatibilityResult, setCompatibilityResult] = useState<CompatibilityResult | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const performCompatibilityCheck = () => {
+  const performCompatibilityCheck = async () => {
     if (!baseFeatureId || !targetFeatureId) {
       return
     }
@@ -55,7 +56,7 @@ function App() {
     setError(null)
 
     try {
-      const result = checkCompatibility(baseFeatureId, targetFeatureId)
+      const result = await checkCompatibility(baseFeatureId, targetFeatureId)
 
       if (result) {
         setCompatibilityResult(result)
@@ -72,9 +73,9 @@ function App() {
 
   // Initialize features from URL on component mount and handle browser navigation
   useEffect(() => {
-    const initializeFromUrl = () => {
-      const urlBaseFeatureId = getFeatureIdFromUrl('base')
-      const urlTargetFeatureId = getFeatureIdFromUrl('target')
+    const initializeFromUrl = async () => {
+      const urlBaseFeatureId = await getFeatureIdFromUrl('base')
+      const urlTargetFeatureId = await getFeatureIdFromUrl('target')
 
       setBaseFeatureId(urlBaseFeatureId)
       setTargetFeatureId(urlTargetFeatureId)
@@ -180,6 +181,15 @@ function App() {
               className="text-blue-600 hover:underline"
             >
               caniuse-db
+            </a>
+            {' and '}
+            <a
+              href="https://github.com/mdn/browser-compat-data"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:underline"
+            >
+              MDN BCD
             </a>
           </p>
           <p>

@@ -26,6 +26,7 @@ Cool trick: You can share your feature comparisons with a simple URL! For exampl
 
 ```bash
 npm install
+npm run build-compat-data
 npm run dev
 # To build for production:
 # npm run build

@@ -5,16 +5,20 @@
   "main": "index.js",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "tsc && cross-env NODE_OPTIONS=--max-old-space-size=8192 vite build",
     "preview": "vite preview",
-    "prepare": "husky install"
+    "prepare": "husky install",
+    "build-compat-data": "tsx scripts/build-compat-data.ts",
+    "prebuild": "npm run build-compat-data"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@mdn/browser-compat-data": "^7.1.2",
     "@tailwindcss/postcss": "^4.1.8",
+    "@tanstack/react-virtual": "^3.13.12",
     "caniuse-db": "^1.0.30001727",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -29,15 +33,17 @@
     "tailwindcss": "^4.1.8"
   },
   "devDependencies": {
-    "@types/node": "^22.15.29",
+    "@types/node": "^22.18.0",
     "@types/react": "^19.1.6",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.5.1",
     "@whtsky/prettier-config": "^1.0.1",
     "autoprefixer": "^10.4.21",
+    "cross-env": "^10.0.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.1.0",
     "prettier": "^3.5.3",
+    "tsx": "^4.20.5",
     "typescript": "^5.8.3",
     "vite": "^6.3.5"
   },

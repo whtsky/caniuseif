@@ -1,82 +1,120 @@
-import featuresData from 'caniuse-db/fulldata-json/data-2.0.json'
+import featuresData from '../data/features.json'
 import Fuse from 'fuse.js'
 
-export type SupportLevel = 'full' | 'partial' | 'none'
+// Import shared types
+import type { Feature, SupportLevel, BrowserSupport, CompatibilityResult, FeatureData } from '@/types/compat'
 
-// Enhanced feature interface with description
-export interface Feature {
-  id: string
-  title: string
-  description?: string
+// Cache for dynamically loaded feature data
+const featureDataCache = new Map<string, FeatureData>()
+
+// Browser name mapping for consistent display
+const browserNames: Record<string, string> = {
+  chrome: 'Chrome',
+  firefox: 'Firefox',
+  safari: 'Safari',
+  edge: 'Edge',
+  ie: 'IE',
+  opera: 'Opera',
+  ios_saf: 'iOS Safari',
+  and_chr: 'Android Chrome',
+  and_ff: 'Android Firefox',
+  samsung: 'Samsung Internet',
+  op_mob: 'Opera Mobile',
+  and_uc: 'Android UC Browser',
 }
 
-// Type definitions
-export interface BrowserSupport {
-  browserId: string
-  version: string
-  support: string
-  supportLevel: SupportLevel
-}
-
-export interface CompatibilityResult {
-  compatible: SupportLevel
-  details: {
-    baseFeatureBrowsers: BrowserSupport[]
-    targetFeatureSupport: BrowserSupport[]
-    overlappingSupport: BrowserSupport[]
-    fullSupportPercentage: number
-    partialSupportPercentage: number
-  }
-}
-
-export const featuresList: Feature[] = Object.entries((featuresData as any).data).map(
-  ([id, dbFeature]: [string, any]) => {
-    return {
-      id,
-      title: dbFeature.title || id,
-      description: dbFeature.description,
-    }
-  },
-)
-const fuse = new Fuse(featuresList, {
+// Initialize the search index for features
+let searchIndex: Fuse<Feature> = new Fuse(featuresData, {
   includeScore: true,
   keys: ['title', 'description', 'id'],
 })
 
-export function getFeature(featureId: string): Feature | undefined {
-  return (featuresData as any).data[featureId]
-}
-
-export function getFeatureTitle(featureId: string): string {
-  const feature = getFeature(featureId)
-  return feature?.title || featureId
-}
-
+/** Search for features */
 export function searchFeatures(query: string): Feature[] {
-  if (!query) {
-    return featuresList
+  if (!query.trim()) {
+    return featuresData
   }
-  return fuse.search(query).map((result) => result.item)
+
+  const results = searchIndex.search(query, { limit: 50 })
+  return results.map((result) => result.item)
 }
 
-function parseSupportLevel(supportString: string): SupportLevel {
-  if (!supportString || supportString === 'n') return 'none'
-  if (supportString === 'y') return 'full'
-  if (supportString.includes('a') || supportString.includes('x')) return 'partial'
-  return 'none'
+/** Dynamically load feature data */
+async function loadFeatureData(featureId: string): Promise<FeatureData | null> {
+  // Check cache first
+  if (featureDataCache.has(featureId)) {
+    return featureDataCache.get(featureId)!
+  }
+
+  try {
+    // Sanitize feature ID for file name (same logic as build script)
+    const sanitizedId = featureId.replace(/[^a-zA-Z0-9_-]/g, '_')
+    const featureModule = await import(`../data/features/${sanitizedId}.json`)
+    const minimalData = featureModule.default
+
+    // Get metadata from the main features array
+    const featureMetadata = featuresData.find((f) => f.id === featureId)
+    if (!featureMetadata) {
+      console.warn(`Feature metadata not found for ${featureId}`)
+      return null
+    }
+
+    // Reconstruct full FeatureData object
+    const featureData: FeatureData = {
+      id: featureId,
+      title: featureMetadata.title,
+      description: featureMetadata.description,
+      stats: minimalData.stats,
+    }
+
+    // Cache the loaded data
+    featureDataCache.set(featureId, featureData)
+
+    return featureData
+  } catch (error) {
+    console.warn(`Failed to load feature data for ${featureId}:`, error)
+    return null
+  }
 }
 
-// Get browser support data with enhanced browser information
-function getBrowserSupportData(feature: any): BrowserSupport[] {
+/** Get feature by ID (with dynamic loading) */
+export async function getFeature(featureId: string): Promise<FeatureData | null> {
+  return await loadFeatureData(featureId)
+}
+
+/** Get feature title by ID */
+export function getFeatureTitle(featureId: string): string | null {
+  const feature = featuresData.find((f) => f.id === featureId)
+  return feature?.title || featureDataCache.get(featureId)?.title || null
+}
+
+/** Get browser support data for a feature */
+export async function getBrowserSupportData(featureId: string): Promise<BrowserSupport[]> {
+  const feature = await loadFeatureData(featureId)
+  if (!feature || !feature.stats) {
+    return []
+  }
+
   const supportData: BrowserSupport[] = []
 
-  Object.entries(feature.stats).forEach(([browserId, versions]: [string, any]) => {
-    Object.entries(versions).forEach(([version, support]: [string, any]) => {
+  // Convert stats to BrowserSupport format
+  Object.entries(feature.stats).forEach(([browserId, versions]) => {
+    Object.entries(versions).forEach(([version, support]) => {
+      let supportLevel: SupportLevel = 'none'
+
+      if (support === 'y') {
+        supportLevel = 'full'
+      } else if (support === 'a' || support === 'p') {
+        supportLevel = 'partial'
+      } else if (support === 'n') {
+        supportLevel = 'none'
+      }
+
       supportData.push({
         browserId,
         version,
         support,
-        supportLevel: parseSupportLevel(support),
+        supportLevel,
       })
     })
   })
@@ -84,37 +122,35 @@ function getBrowserSupportData(feature: any): BrowserSupport[] {
   return supportData
 }
 
-/** Check compatibility between two features  */
-export function checkCompatibility(baseFeatureId: string, targetFeatureId: string): CompatibilityResult | null {
-  const baseFeature = getFeature(baseFeatureId)
-  const targetFeature = getFeature(targetFeatureId)
+/** Check compatibility between a base feature and target feature */
+export async function checkCompatibility(baseFeatureId: string, targetFeatureId: string): Promise<CompatibilityResult> {
+  // Get browser support for base feature (browsers that support this feature)
+  const baseSupportData = await getBrowserSupportData(baseFeatureId)
 
-  if (!baseFeature || !targetFeature) {
-    return null
-  }
+  // Filter to only browsers/versions that fully support the base feature
+  const supportingBrowsers = baseSupportData.filter((support) => support.supportLevel === 'full')
 
-  const baseBrowserSupport = getBrowserSupportData(baseFeature)
-  const targetBrowserSupport = getBrowserSupportData(targetFeature)
+  // Get browser support for target feature
+  const targetSupportData = await getBrowserSupportData(targetFeatureId)
+  const targetSupportMap = new Map<string, BrowserSupport>()
 
-  // Find browsers that support the base feature
-  const supportingBrowsers = baseBrowserSupport.filter(
-    (support) => support.supportLevel === 'full' || support.supportLevel === 'partial',
-  )
+  targetSupportData.forEach((support) => {
+    const key = `${support.browserId}-${support.version}`
+    targetSupportMap.set(key, support)
+  })
 
-  // Check target feature support for these browsers
+  // Check overlapping support
   const overlappingSupport: BrowserSupport[] = []
   let fullSupportCount = 0
   let partialSupportCount = 0
   let noSupportCount = 0
 
   supportingBrowsers.forEach((baseSupport) => {
-    const targetSupport = targetBrowserSupport.find(
-      (ts) => ts.browserId === baseSupport.browserId && ts.version === baseSupport.version,
-    )
+    const key = `${baseSupport.browserId}-${baseSupport.version}`
+    const targetSupport = targetSupportMap.get(key)
 
     if (targetSupport) {
       overlappingSupport.push(targetSupport)
-
       switch (targetSupport.supportLevel) {
         case 'full':
           fullSupportCount++
@@ -122,7 +158,7 @@ export function checkCompatibility(baseFeatureId: string, targetFeatureId: strin
         case 'partial':
           partialSupportCount++
           break
-        case 'none':
+        default:
           noSupportCount++
           break
       }
@@ -157,7 +193,7 @@ export function checkCompatibility(baseFeatureId: string, targetFeatureId: strin
     compatible,
     details: {
       baseFeatureBrowsers: supportingBrowsers,
-      targetFeatureSupport: targetBrowserSupport,
+      targetFeatureSupport: targetSupportData,
       overlappingSupport,
       fullSupportPercentage,
       partialSupportPercentage,
@@ -167,6 +203,27 @@ export function checkCompatibility(baseFeatureId: string, targetFeatureId: strin
 
 /** Get browser name by id */
 export function getBrowserName(browserId: string): string {
-  const browser = (featuresData as any).agents[browserId]
-  return browser?.browser || browserId
+  // Use our consistent browser name mapping
+  if (browserNames[browserId]) {
+    return browserNames[browserId]
+  }
+
+  // Final fallback - return the ID itself
+  return browserId
+}
+
+/** Preload feature data (optional optimization) */
+export async function preloadFeatureData(featureIds: string[]): Promise<void> {
+  const loadPromises = featureIds.filter((id) => !featureDataCache.has(id)).map((id) => loadFeatureData(id))
+
+  await Promise.all(loadPromises)
+}
+
+/** Get stats about loaded features */
+export function getLoadedFeaturesStats() {
+  return {
+    totalFeatures: featuresData.length,
+    loadedFeatures: featureDataCache.size,
+    cacheHitRate: featureDataCache.size / Math.max(1, featuresData.length),
+  }
 }
