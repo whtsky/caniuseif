@@ -2,20 +2,11 @@ import { useState, useEffect } from 'react'
 import { FeatureSelector } from '@/components/feature-selector'
 import { ResultsDisplay } from '@/components/results-display'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card'
-import { checkCompatibility, getFeature } from './services/caniuseService'
-import type { CompatibilityResult } from './types/compat'
+import { getFeatureTitle } from './services/caniuseService'
 
-// Helper functions for URL management
-async function getFeatureIdFromUrl(paramName: string): Promise<string | null> {
+function getFeatureIdFromUrl(paramName: string): string | null {
   const urlParams = new URLSearchParams(window.location.search)
-  const featureId = urlParams.get(paramName)
-
-  if (!featureId) return null
-
-  const feature = await getFeature(featureId)
-  if (!feature) return null
-
-  return featureId
+  return urlParams.get(paramName)
 }
 
 function updateUrl(baseFeatureId: string | null, targetFeatureId: string | null) {
@@ -36,46 +27,33 @@ function updateUrl(baseFeatureId: string | null, targetFeatureId: string | null)
   window.history.pushState({}, '', url.toString())
 }
 
+function updateTitle(baseFeatureId: string | null, targetFeatureId: string | null) {
+  const defaultTitle = 'CanIUseIf - Web Feature Compatibility Checker'
+
+  if (!baseFeatureId || !targetFeatureId) {
+    document.title = defaultTitle
+    return
+  }
+
+  const baseFeatureTitle = getFeatureTitle(baseFeatureId)
+  const targetFeatureTitle = getFeatureTitle(targetFeatureId)
+
+  if (baseFeatureTitle && targetFeatureTitle) {
+    document.title = `Can I use ${targetFeatureTitle} if I'm already using ${baseFeatureTitle} - CanIUseIf`
+  } else {
+    document.title = defaultTitle
+  }
+}
+
 function App() {
   const [baseFeatureId, setBaseFeatureId] = useState<string | null>(null)
   const [targetFeatureId, setTargetFeatureId] = useState<string | null>(null)
-  const [compatibilityResult, setCompatibilityResult] = useState<CompatibilityResult | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  const performCompatibilityCheck = async () => {
-    if (!baseFeatureId || !targetFeatureId) {
-      return
-    }
-
-    if (baseFeatureId === targetFeatureId) {
-      setError('Choose two different features to compare')
-      setCompatibilityResult(null)
-      return
-    }
-
-    setError(null)
-
-    try {
-      const result = await checkCompatibility(baseFeatureId, targetFeatureId)
-
-      if (result) {
-        setCompatibilityResult(result)
-      } else {
-        setError('Unable to analyze compatibility. Please try different features.')
-        setCompatibilityResult(null)
-      }
-    } catch (err) {
-      setError('An error occurred while checking compatibility.')
-      setCompatibilityResult(null)
-      console.error(err)
-    }
-  }
 
   // Initialize features from URL on component mount and handle browser navigation
   useEffect(() => {
-    const initializeFromUrl = async () => {
-      const urlBaseFeatureId = await getFeatureIdFromUrl('base')
-      const urlTargetFeatureId = await getFeatureIdFromUrl('target')
+    const initializeFromUrl = () => {
+      const urlBaseFeatureId = getFeatureIdFromUrl('base')
+      const urlTargetFeatureId = getFeatureIdFromUrl('target')
 
       setBaseFeatureId(urlBaseFeatureId)
       setTargetFeatureId(urlTargetFeatureId)
@@ -96,14 +74,10 @@ function App() {
     }
   }, [])
 
-  // Update URL when features change
+  // Update URL and title when features change
   useEffect(() => {
     updateUrl(baseFeatureId, targetFeatureId)
-  }, [baseFeatureId, targetFeatureId])
-
-  // Auto-check compatibility when both features are selected
-  useEffect(() => {
-    performCompatibilityCheck()
+    updateTitle(baseFeatureId, targetFeatureId)
   }, [baseFeatureId, targetFeatureId])
 
   return (
@@ -151,23 +125,12 @@ function App() {
                 <p className="text-xs text-gray-600">Select the new web feature you're thinking about adopting</p>
               </div>
             </div>
-
-            {/* Error Display */}
-            {error && (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-red-600 text-sm font-medium">{error}</p>
-              </div>
-            )}
           </CardContent>
         </Card>
 
         {/* Results */}
-        {compatibilityResult && baseFeatureId && targetFeatureId && (
-          <ResultsDisplay
-            result={compatibilityResult}
-            baseFeatureId={baseFeatureId}
-            targetFeatureId={targetFeatureId}
-          />
+        {baseFeatureId && targetFeatureId && (
+          <ResultsDisplay baseFeatureId={baseFeatureId} targetFeatureId={targetFeatureId} />
         )}
 
         {/* Footer */}

@@ -3,7 +3,7 @@ import { Badge } from './ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion'
 import { CompatibilityResult, BrowserSupport, SupportLevel } from '@/types/compat'
-import { getBrowserName, getFeature, getFeatureTitle } from '@/services/caniuseService'
+import { getBrowserName, getFeature, getFeatureTitle, checkCompatibility } from '@/services/caniuseService'
 import { CanIUseLearnMoreButton } from './caniuse-learn-more-button'
 
 const generateSummaryText = (
@@ -27,7 +27,6 @@ const generateSummaryText = (
 }
 
 interface ResultsDisplayProps {
-  result: CompatibilityResult
   baseFeatureId: string
   targetFeatureId: string
 }
@@ -139,30 +138,89 @@ const formatVersionsList = (versions: string[]) => {
   return groupedVersions.join(', ')
 }
 
-export function ResultsDisplay({ result, baseFeatureId, targetFeatureId }: ResultsDisplayProps) {
+export function ResultsDisplay({ baseFeatureId, targetFeatureId }: ResultsDisplayProps) {
   const [baseFeature, setBaseFeature] = useState<any>(null)
   const [targetFeature, setTargetFeature] = useState<any>(null)
+  const [result, setResult] = useState<CompatibilityResult | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    const loadFeatures = async () => {
+    const loadDataAndCalculate = async () => {
+      if (!baseFeatureId || !targetFeatureId) {
+        return
+      }
+
+      if (baseFeatureId === targetFeatureId) {
+        setError('Choose two different features to compare')
+        setResult(null)
+        setLoading(false)
+        return
+      }
+
       setLoading(true)
       setError(null)
+
       try {
-        const [base, target] = await Promise.all([getFeature(baseFeatureId), getFeature(targetFeatureId)])
+        // Load feature details and calculate compatibility in parallel
+        const [base, target, compatibilityResult] = await Promise.all([
+          getFeature(baseFeatureId),
+          getFeature(targetFeatureId),
+          checkCompatibility(baseFeatureId, targetFeatureId),
+        ])
+
         setBaseFeature(base)
         setTargetFeature(target)
+
+        if (compatibilityResult) {
+          setResult(compatibilityResult)
+        } else {
+          setError('Unable to analyze compatibility. Please try different features.')
+          setResult(null)
+        }
       } catch (error) {
-        console.error('Error loading features:', error)
-        setError('Failed to load feature details. Please try again.')
+        console.error('Error loading data or calculating compatibility:', error)
+        setError('An error occurred while checking compatibility.')
+        setResult(null)
       } finally {
         setLoading(false)
       }
     }
 
-    loadFeatures()
+    loadDataAndCalculate()
   }, [baseFeatureId, targetFeatureId])
+
+  // Show loading state
+  if (loading) {
+    return (
+      <Card className="w-full">
+        <CardContent className="flex items-center justify-center py-8">
+          <div className="flex items-center">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-3"></div>
+            <span className="text-gray-600">Calculating compatibility...</span>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <Card className="w-full">
+        <CardContent className="p-6">
+          <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-red-600 text-sm font-medium">{error}</p>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // Don't render if no result
+  if (!result) {
+    return null
+  }
 
   const baseFeatureTitle = baseFeature?.title || getFeatureTitle(baseFeatureId) || baseFeatureId
   const targetFeatureTitle = targetFeature?.title || getFeatureTitle(targetFeatureId) || targetFeatureId
@@ -180,53 +238,28 @@ export function ResultsDisplay({ result, baseFeatureId, targetFeatureId }: Resul
 
       <CardContent>
         <div className="space-y-4">
-          {/* Error Display */}
-          {error && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-red-600 text-sm font-medium">{error}</p>
-            </div>
-          )}
-
           <div className="grid md:grid-cols-2 gap-4">
             <div className="border rounded-lg p-4">
               <h3 className="font-semibold">{baseFeatureTitle}</h3>
-              {loading ? (
-                <div className="flex items-center mt-2">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-2"></div>
-                  <span className="text-sm text-gray-500">Loading feature details...</span>
-                </div>
-              ) : (
-                <>
-                  {baseFeature?.description && (
-                    <p className="text-sm text-muted-foreground mt-2">{baseFeature.description}</p>
-                  )}
-                  <CanIUseLearnMoreButton
-                    featureTitle={baseFeatureTitle}
-                    featureId={baseFeatureId}
-                    className="mt-4 w-full"
-                  />
-                </>
+              {baseFeature?.description && (
+                <p className="text-sm text-muted-foreground mt-2">{baseFeature.description}</p>
               )}
+              <CanIUseLearnMoreButton
+                featureTitle={baseFeatureTitle}
+                featureId={baseFeatureId}
+                className="mt-4 w-full"
+              />
             </div>
             <div className="border rounded-lg p-4">
               <h3 className="font-semibold">{targetFeatureTitle}</h3>
-              {loading ? (
-                <div className="flex items-center mt-2">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-2"></div>
-                  <span className="text-sm text-gray-500">Loading feature details...</span>
-                </div>
-              ) : (
-                <>
-                  {targetFeature?.description && (
-                    <p className="text-sm text-muted-foreground mt-2">{targetFeature.description}</p>
-                  )}
-                  <CanIUseLearnMoreButton
-                    featureTitle={targetFeatureTitle}
-                    featureId={targetFeatureId}
-                    className="mt-4 w-full"
-                  />
-                </>
+              {targetFeature?.description && (
+                <p className="text-sm text-muted-foreground mt-2">{targetFeature.description}</p>
               )}
+              <CanIUseLearnMoreButton
+                featureTitle={targetFeatureTitle}
+                featureId={targetFeatureId}
+                className="mt-4 w-full"
+              />
             </div>
           </div>
 

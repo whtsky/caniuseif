@@ -4,9 +4,6 @@ import Fuse from 'fuse.js'
 // Import shared types
 import type { Feature, SupportLevel, BrowserSupport, CompatibilityResult, FeatureData } from '@/types/compat'
 
-// Cache for dynamically loaded feature data
-const featureDataCache = new Map<string, FeatureData>()
-
 // Browser name mapping for consistent display
 const browserNames: Record<string, string> = {
   chrome: 'Chrome',
@@ -35,17 +32,12 @@ export function searchFeatures(query: string): Feature[] {
     return featuresData
   }
 
-  const results = searchIndex.search(query, { limit: 50 })
+  const results = searchIndex.search(query)
   return results.map((result) => result.item)
 }
 
-/** Dynamically load feature data */
-async function loadFeatureData(featureId: string): Promise<FeatureData | null> {
-  // Check cache first
-  if (featureDataCache.has(featureId)) {
-    return featureDataCache.get(featureId)!
-  }
-
+/** Get feature by ID (with dynamic loading) */
+export async function getFeature(featureId: string): Promise<FeatureData | null> {
   try {
     // Sanitize feature ID for file name (same logic as build script)
     const sanitizedId = featureId.replace(/[^a-zA-Z0-9_-]/g, '_')
@@ -67,9 +59,6 @@ async function loadFeatureData(featureId: string): Promise<FeatureData | null> {
       stats: minimalData.stats,
     }
 
-    // Cache the loaded data
-    featureDataCache.set(featureId, featureData)
-
     return featureData
   } catch (error) {
     console.warn(`Failed to load feature data for ${featureId}:`, error)
@@ -77,20 +66,15 @@ async function loadFeatureData(featureId: string): Promise<FeatureData | null> {
   }
 }
 
-/** Get feature by ID (with dynamic loading) */
-export async function getFeature(featureId: string): Promise<FeatureData | null> {
-  return await loadFeatureData(featureId)
-}
-
 /** Get feature title by ID */
 export function getFeatureTitle(featureId: string): string | null {
   const feature = featuresData.find((f) => f.id === featureId)
-  return feature?.title || featureDataCache.get(featureId)?.title || null
+  return feature?.title || null
 }
 
 /** Get browser support data for a feature */
 export async function getBrowserSupportData(featureId: string): Promise<BrowserSupport[]> {
-  const feature = await loadFeatureData(featureId)
+  const feature = await getFeature(featureId)
   if (!feature || !feature.stats) {
     return []
   }
@@ -99,7 +83,7 @@ export async function getBrowserSupportData(featureId: string): Promise<BrowserS
 
   // Convert stats to BrowserSupport format
   Object.entries(feature.stats).forEach(([browserId, versions]) => {
-    Object.entries(versions).forEach(([version, support]) => {
+    Object.entries(versions as Record<string, string>).forEach(([version, support]) => {
       let supportLevel: SupportLevel = 'none'
 
       if (support === 'y') {
@@ -203,27 +187,5 @@ export async function checkCompatibility(baseFeatureId: string, targetFeatureId:
 
 /** Get browser name by id */
 export function getBrowserName(browserId: string): string {
-  // Use our consistent browser name mapping
-  if (browserNames[browserId]) {
-    return browserNames[browserId]
-  }
-
-  // Final fallback - return the ID itself
-  return browserId
-}
-
-/** Preload feature data (optional optimization) */
-export async function preloadFeatureData(featureIds: string[]): Promise<void> {
-  const loadPromises = featureIds.filter((id) => !featureDataCache.has(id)).map((id) => loadFeatureData(id))
-
-  await Promise.all(loadPromises)
-}
-
-/** Get stats about loaded features */
-export function getLoadedFeaturesStats() {
-  return {
-    totalFeatures: featuresData.length,
-    loadedFeatures: featureDataCache.size,
-    cacheHitRate: featureDataCache.size / Math.max(1, featuresData.length),
-  }
+  return browserNames[browserId] ?? browserId
 }

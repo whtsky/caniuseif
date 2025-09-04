@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from 'react'
 import { Check, ChevronsUpDown } from 'lucide-react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { cn } from '@/lib/utils'
+import { cn, useDebounce } from '@/lib/utils'
 import { Button } from './ui/button'
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from './ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
@@ -23,12 +23,15 @@ export function FeatureSelector({
   const [open, setOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
 
+  // Debounce the search query to improve performance
+  const debouncedSearchQuery = useDebounce(searchQuery, 50)
+
   // Use useState for tracking the parent node reference
   const [parentNode, setParentNode] = useState<HTMLDivElement | null>(null)
 
   const filteredFeatures = useMemo(() => {
-    return searchFeatures(searchQuery)
-  }, [searchQuery])
+    return searchFeatures(debouncedSearchQuery)
+  }, [debouncedSearchQuery])
 
   // Virtual scrolling setup
   const virtualizer = useVirtualizer({
