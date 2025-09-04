@@ -6,18 +6,24 @@ import type { Feature, SupportLevel, BrowserSupport, CompatibilityResult, Featur
 
 // Browser name mapping for consistent display
 const browserNames: Record<string, string> = {
+  and_chr: 'Chrome for Android',
+  and_ff: 'Firefox for Android',
+  and_qq: 'QQ Browser',
+  and_uc: 'UC Browser for Android',
+  android: 'Android Browser',
+  baidu: 'Baidu',
+  bb: 'Blackberry',
   chrome: 'Chrome',
-  firefox: 'Firefox',
-  safari: 'Safari',
   edge: 'Edge',
-  ie: 'IE',
-  opera: 'Opera',
+  firefox: 'Firefox',
+  ie: 'Internet Explorer',
+  ie_mob: 'IE Mobile',
   ios_saf: 'iOS Safari',
-  and_chr: 'Android Chrome',
-  and_ff: 'Android Firefox',
-  samsung: 'Samsung Internet',
+  op_mini: 'Opera Mini',
   op_mob: 'Opera Mobile',
-  and_uc: 'Android UC Browser',
+  opera: 'Opera',
+  safari: 'Safari',
+  samsung: 'Samsung Internet',
 }
 
 // Initialize the search index for features
