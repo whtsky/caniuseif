@@ -41,7 +41,7 @@
     "autoprefixer": "^10.4.21",
     "cross-env": "^10.0.0",
     "husky": "^9.1.7",
-    "lint-staged": "^16.1.0",
+    "lint-staged": "^16.1.6",
     "prettier": "^3.5.3",
     "tsx": "^4.20.5",
     "typescript": "^5.8.3",
