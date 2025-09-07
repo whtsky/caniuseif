@@ -27,8 +27,8 @@
     "lucide-react": "^0.513.0",
     "postcss": "^8.5.4",
     "radix-ui": "^1.4.2",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
     "tailwind-merge": "^3.3.0",
     "tailwindcss": "^4.1.8"
   },
