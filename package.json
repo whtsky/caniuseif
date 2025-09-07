@@ -17,7 +17,7 @@
   "description": "",
   "dependencies": {
     "@mdn/browser-compat-data": "^7.1.2",
-    "@tailwindcss/postcss": "^4.1.8",
+    "@tailwindcss/postcss": "^4.1.13",
     "@tanstack/react-virtual": "^3.13.12",
     "caniuse-db": "^1.0.30001727",
     "class-variance-authority": "^0.7.1",
@@ -30,7 +30,7 @@
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "tailwind-merge": "^3.3.0",
-    "tailwindcss": "^4.1.8"
+    "tailwindcss": "^4.1.13"
   },
   "devDependencies": {
     "@types/node": "^22.18.1",
