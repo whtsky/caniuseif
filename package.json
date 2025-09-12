@@ -19,7 +19,7 @@
     "@mdn/browser-compat-data": "^7.1.2",
     "@tailwindcss/postcss": "^4.1.8",
     "@tanstack/react-virtual": "^3.13.12",
-    "caniuse-db": "^1.0.30001727",
+    "caniuse-db": "^1.0.30001742",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
